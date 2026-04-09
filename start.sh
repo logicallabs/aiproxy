@@ -25,4 +25,4 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
 fi
 
 echo "Starting unified server on http://localhost:${PORT} (Both routes enabled) ..."
-exec node server.js
+exec /usr/local/bin/node server.js
