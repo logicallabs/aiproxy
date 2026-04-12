@@ -48,27 +48,43 @@ With that layout, the Gemini model name appears only once in the file, and `GEMI
 
 `.env.modelspecs` should stay untracked and contain your real keys. `.env.modelspecs.example` is the safe file to commit and document.
 
-## How To Run
+## How To Run (Local / Dev)
 
-Use a bash shell in this folder:
+There are two ways to start the server locally. Both end up running `node server.cjs` — they differ only in how environment variables are supplied.
+
+### Option A — via start.sh (recommended for local dev)
+
+`start.sh` sources `.env.modelspecs` if it exists, exports all required variables, and prompts interactively for any that are still missing (e.g. API keys). This is the easiest path when you do not want to export variables manually.
+
+Run it directly:
 
 ```bash
 bash start.sh
 ```
 
-That script starts:
+Or via npm:
 
 ```bash
-node server.cjs
+npm run start:dev
 ```
 
-Base URL:
+### Option B — via npm start (manual env management)
+
+If your environment variables are already exported in your shell session (e.g. via your shell profile or a separate env tool), you can start the server directly without the shell script:
+
+```bash
+npm start
+```
+
+The server will fail to reach upstream providers if the required variables are not already set — there is no interactive prompt in this path.
+
+### Base URL
 
 ```text
 http://localhost:3000
 ```
 
-Endpoints:
+### Endpoints
 
 - `POST /api/gemprompt`
 - `POST /api/ghprompt`
@@ -123,7 +139,7 @@ npm run test:live
 
 Requirements:
 
-- `bash start.sh` is already running
+- the local proxy server is already running (via `bash start.sh`, `npm run start:dev`, or `npm start` with env vars pre-set)
 - valid provider credentials are available
 - upstream providers are reachable
 

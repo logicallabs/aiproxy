@@ -5,7 +5,8 @@
   "description": "Reverse proxy for submitting AI prompts",
   "main": "server.cjs",
   "scripts": {
-    "start": "start.sh",
+    "start": "node server.cjs",
+    "start:dev": "bash start.sh",
     "test": "node --test test/unit.test.js",
     "test:live": "node --test test/test.js",
     "test:all": "node --test test/unit.test.js test/test.js"
