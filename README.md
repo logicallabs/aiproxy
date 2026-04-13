@@ -137,6 +137,12 @@ Run the real end-to-end path through the local proxy and upstream providers:
 npm run test:live
 ```
 
+You can also target a deployed environment by overriding the test base URL:
+
+```bash
+TEST_BASE_URL=https://aiproxy.numerusinc.com npm run test:live
+```
+
 Requirements:
 
 - the local proxy server is already running (via `bash start.sh`, `npm run start:dev`, or `npm start` with env vars pre-set)

@@ -1,3 +1,4 @@
+.env
 .env.modelkeys
 .env.modelspecs
 node_modules/

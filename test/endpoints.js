@@ -1,5 +1,7 @@
+const TEST_BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
+
 async function callGeminiRequest(requestBody) {
-  const response = await fetch("http://localhost:3000/api/gemprompt", {
+  const response = await fetch(`${TEST_BASE_URL}/api/gemprompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestBody)
@@ -23,7 +25,7 @@ async function callGeminiRequest(requestBody) {
 }
 
 async function callGitHubModelsRequest(requestBody) {
-  const response = await fetch("http://localhost:3000/api/ghprompt", {
+  const response = await fetch(`${TEST_BASE_URL}/api/ghprompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(requestBody)
