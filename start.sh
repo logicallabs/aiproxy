@@ -8,14 +8,16 @@ if [[ -f ".env.modelspecs" ]]; then
 fi
 
 # Ensure sourced values are available to node.
-export GEMINI_API_KEY="${GEMINI_API_KEY:-}"
-export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 export PORT="${PORT:-3000}"
+export GEMINI_API_KEY="${GEMINI_API_KEY:-}"
 export GEMINI_MODEL="${GEMINI_MODEL:-}"
 export GEMINI_URL="${GEMINI_URL:-}"
+export GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 export GH_URL="${GH_URL:-}"
 export OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 export OPENROUTER_URL=${OPENROUTER_URL:-}
+export DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+export DEEPSEEK_URL=${DEEPSEEK_URL:-}
 
 if [[ -z "${GEMINI_API_KEY:-}" ]]; then
   read -rsp "Enter GEMINI_API_KEY: " GEMINI_API_KEY
@@ -35,6 +37,12 @@ if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
   export OPENROUTER_API_KEY
 fi
 
+if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+  read -rsp "Enter DEEPSEEK_API_KEY: " DEEPSEEK_API_KEY
+  echo
+  export DEEPSEEK_API_KEY
+fi
+
 if [[ -z "${GEMINI_URL:-}" ]]; then
   echo "Warning: GEMINI_URL is not set. The Gemini route will stay disabled until it is configured." >&2
 fi
@@ -45,6 +53,10 @@ fi
 
 if [[ -z "${OPENROUTER_URL:-}" ]]; then
   echo "Warning: OPENROUTER_URL is not set. The OpenRouter route will stay disabled until it is configured." >&2
+fi
+
+if [[ -z "${DEEPSEEK_URL:-}" ]]; then
+  echo "Warning: DEEPSEEK_URL is not set. The DeepSeek route will stay disabled until it is configured." >&2
 fi
 
 echo "Starting unified server on http://localhost:${PORT} (Gemini, GitHub Models, and OpenRouter routes configured as available) ..."

@@ -11,6 +11,8 @@ const OPENROUTER_URL = process.env.OPENROUTER_URL;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_URL = process.env.DEEPSEEK_URL ;
 
 function logMissingEnvWarning(routeLabel, envName) {
   console.log(`${routeLabel} route disabled until ${envName} is set.`);
@@ -144,6 +146,7 @@ function handleOpenAIModelsPrompt(token, url, tokenName) {
 
 var handleGitHubModelsPrompt = handleOpenAIModelsPrompt(GITHUB_TOKEN, GH_URL, "GITHUB_TOKEN");
 var handleOpenRouterModelsPrompt = handleOpenAIModelsPrompt(OPENROUTER_API_KEY, OPENROUTER_URL, "OPENROUTER_API_KEY");
+var handleDeepSeekPrompt = handleOpenAIModelsPrompt(DEEPSEEK_API_KEY, DEEPSEEK_URL, "DEEPSEEK_API_KEY");
 
 const server = http.createServer((req, res) => {
   if (req.method === "OPTIONS") {
@@ -164,6 +167,9 @@ const server = http.createServer((req, res) => {
         return;
       case "/api/orprompt":
         handleOpenRouterModelsPrompt(req, res);
+        return;
+      case "/api/dsprompt":
+        handleDeepSeekPrompt(req, res);
         return;
       default:
         break;

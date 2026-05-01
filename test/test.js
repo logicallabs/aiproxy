@@ -1,13 +1,15 @@
 import test from "node:test";
 
-import { callGitHubModelsRequest, callGeminiRequest, callOpenRouterModelsRequest } from "./endpoints.js";
+import { callGitHubModelsRequest, callGeminiRequest, callOpenRouterModelsRequest, callDeepSeekRequest } from "./endpoints.js";
 import {
   assertChatGPTHistory,
   assertGeminiHistory,
   assertOpenRouterHistory,
+  assertDeepSeekHistory,
   createChatGPTAssistant,
   createGeminiAssistant,
   createOpenRouterAssistant,
+  createDeepSeekAssistant,
   runPrompt,
   runProviderAssertion
 } from "./support.js";
@@ -42,6 +44,16 @@ async function callOpenRouter(assistant, userPrompt) {
   );
 }
 
+async function callDeepSeekRouter(assistant, userPrompt) {
+  return runPrompt(
+    "DeepSeek",
+    assistant,
+    userPrompt,
+    callDeepSeekRequest,
+    "DeepSeek response did not include any text."
+  );
+}
+
 test("Gemini proxy preserves conversational context", async (testContext) => {
   await runProviderAssertion(
     testContext,
@@ -72,5 +84,16 @@ test("OpenRouter proxy preserves conversational context", async (testContext) =>
     callOpenRouter,
     (assistant) => assistant.messages,
     assertOpenRouterHistory
+  );
+});
+
+test("DeepSeek proxy preserves conversational context", async (testContext) => {
+  await runProviderAssertion(
+    testContext,
+    "DeepSeek",
+    createDeepSeekAssistant,
+    callDeepSeekRouter,
+    (assistant) => assistant.messages,
+    assertDeepSeekHistory
   );
 });

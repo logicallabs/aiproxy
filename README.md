@@ -1,6 +1,6 @@
 # AI Proxy Reverse Proxy Server
 
-This folder contains a lightweight Node.js reverse proxy server that forwards model-specific prompt payloads to Gemini, GitHub Models, and OpenRouter.
+This folder contains a lightweight Node.js reverse proxy server that forwards model-specific prompt payloads to Gemini, GitHub Models, OpenRouter, and DeepSeek.
 
 The server also serves static files from this folder for `GET` requests.
 
@@ -12,6 +12,12 @@ The server also serves static files from this folder for `GET` requests.
 - Normalizes upstream errors to `{ "error": "..." }`
 - Handles CORS for browser clients
 
+## Runtime Requirement
+
+- Node.js `>=18.0.0`
+
+The project uses the built-in `node:test` runner and ESM imports, so older Node releases will fail to start the test suite.
+
 ## Environment Variables
 
 The proxy uses these values:
@@ -19,11 +25,13 @@ The proxy uses these values:
 - `GEMINI_API_KEY`
 - `GITHUB_TOKEN`
 - `OPENROUTER_API_KEY`
+- `DEEPSEEK_API_KEY`
 - `PORT` optional, defaults to `3000`
 - `GEMINI_MODEL` Gemini model name used to build the Gemini upstream URL
 - `GEMINI_URL` required Gemini upstream URL, typically defined in terms of `GEMINI_MODEL` and `GEMINI_API_KEY`
 - `GH_URL` required GitHub Models upstream URL
 - `OPENROUTER_URL` required OpenRouter chat-completions URL
+- `DEEPSEEK_URL` required DeepSeek chat-completions URL
 
 `start.sh` sources `.env.modelspecs` if it exists, exports the variables above, prompts for missing API keys, and starts `server.cjs`.
 
@@ -39,11 +47,13 @@ Example `.env.modelspecs.example`:
 
 ```bash
 GEMINI_API_KEY=your_gemini_key
-GITHUB_TOKEN=your_github_token
+DEEPSEEK_API_KEY=your_deepseek_key
 OPENROUTER_API_KEY=your_openrouter_key
+GITHUB_TOKEN=your_github_token
 GEMINI_MODEL="gemini-2.5-flash"
 GEMINI_URL="https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}"
 GH_URL="https://models.inference.ai.azure.com/chat/completions"
+DEEPSEEK_URL="https://api.deepseek.com/chat/completions"
 OPENROUTER_URL="https://openrouter.ai/api/v1/chat/completions"
 PORT=3000
 ```
@@ -93,6 +103,7 @@ http://localhost:3000
 - `POST /api/gemprompt`
 - `POST /api/ghprompt`
 - `POST /api/orprompt`
+- `POST /api/dsprompt`
 
 ## Request And Response Contract
 
@@ -103,6 +114,7 @@ Clients should therefore send provider-shaped JSON:
 - Gemini clients send a Gemini `generateContent` style payload
 - GitHub Models clients send a chat-completions style payload
 - OpenRouter clients send a chat-completions style payload
+- DeepSeek clients send a chat-completions style payload
 
 Current examples live in these files:
 
@@ -155,7 +167,7 @@ Requirements:
 - valid provider credentials are available
 - upstream providers are reachable
 
-The live test helpers in this folder now cover Gemini, GitHub Models, and OpenRouter through the local proxy endpoints.
+The live test helpers in this folder now cover Gemini, GitHub Models, OpenRouter, and DeepSeek through the local proxy endpoints.
 
 These tests can skip when a provider returns a transient overload response such as Gemini high demand.
 
