@@ -13,26 +13,35 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_URL = process.env.DEEPSEEK_URL ;
+const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 30000);
 
 function logMissingEnvWarning(routeLabel, envName) {
   console.log(`${routeLabel} route disabled until ${envName} is set.`);
 }
 
-function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, {
-    "Content-Type": "application/json",
+function buildCorsHeaders(contentType) {
+  return {
+    "Content-Type": contentType,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type"
-  });
+  };
+}
+
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, buildCorsHeaders("application/json"));
   res.end(JSON.stringify(payload));
+}
+
+function sendText(res, statusCode, payload, contentType = "text/plain") {
+  res.writeHead(statusCode, buildCorsHeaders(contentType));
+  res.end(payload);
 }
 
 function sendFile(res, filePath) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Not Found");
+      sendText(res, 404, "Not Found");
       return;
     }
 
@@ -44,9 +53,21 @@ function sendFile(res, filePath) {
       ".json": "application/json"
     };
 
-    res.writeHead(200, { "Content-Type": types[ext] || "application/octet-stream" });
+    res.writeHead(200, buildCorsHeaders(types[ext] || "application/octet-stream"));
     res.end(data);
   });
+}
+
+async function parseUpstreamJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function isTimeoutError(error) {
+  return error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 function readRequestBody(req) {
@@ -74,16 +95,17 @@ async function handleGeminiPrompt(req, res) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: body
+        body: body,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
       }
     );
 
-    const data = await response.json();
+    const data = await parseUpstreamJson(response);
 
     if (!response.ok) {
       const message = data && data.error && data.error.message
         ? data.error.message
-        : "Upstream API error";
+        : `Upstream API error (HTTP ${response.status})`;
       sendJson(res, response.status, { error: message });
       return;
     }
@@ -94,7 +116,11 @@ async function handleGeminiPrompt(req, res) {
 
     sendJson(res, 200, { text });
   } catch (error) {
-    sendJson(res, 500, { error: error.message });
+    if (isTimeoutError(error)) {
+      sendJson(res, 504, { error: `Upstream request timed out after ${UPSTREAM_TIMEOUT_MS} ms.` });
+      return;
+    }
+    sendJson(res, 502, { error: error.message || "Upstream request failed." });
   }
 }
 
@@ -119,16 +145,17 @@ function handleOpenAIModelsPrompt(token, url, tokenName) {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
           },
-          body: body
+          body: body,
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
         }
       );
 
-      const data = await response.json();
+      const data = await parseUpstreamJson(response);
 
       if (!response.ok) {
         const message = data && data.error && data.error.message
           ? data.error.message
-          : "Upstream API error";
+          : `Upstream API error (HTTP ${response.status})`;
         sendJson(res, response.status, { error: message });
         return;
       }
@@ -139,7 +166,11 @@ function handleOpenAIModelsPrompt(token, url, tokenName) {
 
       sendJson(res, 200, { text });
     } catch (error) {
-      sendJson(res, 500, { error: error.message });
+      if (isTimeoutError(error)) {
+        sendJson(res, 504, { error: `Upstream request timed out after ${UPSTREAM_TIMEOUT_MS} ms.` });
+        return;
+      }
+      sendJson(res, 502, { error: error.message || "Upstream request failed." });
     }
   }
 }
@@ -150,7 +181,8 @@ var handleDeepSeekPrompt = handleOpenAIModelsPrompt(DEEPSEEK_API_KEY, DEEPSEEK_U
 
 const server = http.createServer((req, res) => {
   if (req.method === "OPTIONS") {
-    sendJson(res, 204, {});
+    res.writeHead(204, buildCorsHeaders("application/json"));
+    res.end();
     return;
   }
 
@@ -181,8 +213,7 @@ const server = http.createServer((req, res) => {
     sendFile(res, filePath);
     return;
   }
-  res.writeHead(405, { "Content-Type": "text/plain" });
-  res.end("Method Not Allowed");
+  sendText(res, 405, "Method Not Allowed");
 });
 
 server.listen(PORT, () => {
