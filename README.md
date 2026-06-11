@@ -114,14 +114,16 @@ The server will fail to reach upstream providers if the required variables are n
 
 The Worker adapter uses the same API route contract as Node for `POST` endpoints. Static file serving is not supported in the Worker — it handles API routes only.
 
-`wrangler.toml` defines two environments:
+Before using the Worker on a machine, run `npx wrangler login` once so Wrangler can authenticate with Cloudflare. The committed files intentionally stay generic; Cloudflare names, routes, account IDs, and zone details live in the untracked `.worker.local.env` file.
+
+`wrangler.toml` is a public template. The restore script renders the actual Cloudflare values from `.worker.local.env`.
 
 | Environment | Worker name | Custom domain | Command |
 |---|---|---|---|
-| dev (default) | `aiproxy-dev` | `aiproxy-dev.numerus.app` | `npm run worker:deploy` |
-| production | `aiproxy` | `aiproxy-worker.numerus.app` | `npm run worker:deploy:prod` |
+| dev (default) | `CF_DEV_WORKER_NAME` | `CF_DEV_CUSTOM_DOMAIN` | `npm run worker:deploy` |
+| production | `CF_PROD_WORKER_NAME` | `CF_PROD_CUSTOM_DOMAIN` | `npm run worker:deploy:prod` |
 
-> `aiproxy.numerus.app` currently points to the DigitalOcean App. When you decide to cut over to the Worker, update the production route in `wrangler.toml` to `aiproxy.numerus.app/*`, redeploy with `npm run worker:deploy:prod`, and update the DNS CNAME. No other changes needed.
+> When you decide to cut over the public production domain to the Worker, update the values in your local `.worker.local.env` file, rerun `npm run worker:deploy:prod`, and change the DNS CNAME. No committed file needs to change for that cutover.
 
 ### First-time secret setup
 
@@ -147,7 +149,14 @@ npx wrangler secret put DEEPSEEK_API_KEY -e production
 npm run worker:dev
 ```
 
-Wrangler runs the Worker on `http://127.0.0.1:8787` using a local runtime emulation layer.
+Wrangler runs the Worker on `http://127.0.0.1:8787` using a local runtime emulation layer. The script reads `.env` for API credentials and `.worker.local.env` for Cloudflare-specific names/routes.
+
+The local machine needs all of the following before this can work:
+
+- `npx wrangler login`
+- `.env` with provider credentials
+- `.worker.local.env` with Cloudflare account, zone, worker names, and routes
+- DNS access to the relevant Cloudflare zone if you want the custom domain to resolve
 
 ### Deploy to Cloudflare
 
@@ -161,12 +170,12 @@ npm run worker:deploy:prod
 
 ### Custom domain DNS
 
-Cloudflare route bindings in `wrangler.toml` do not create DNS records automatically. Each hostname needs a CNAME in the `numerus.app` zone:
+Cloudflare route bindings in `wrangler.toml` do not create DNS records automatically. Each hostname needs a CNAME in your DNS zone:
 
 | Name | Target | Proxy |
 |---|---|---|
-| `aiproxy-dev` | `aiproxy-dev.numerus.workers.dev` | Proxied |
-| `aiproxy-worker` | `aiproxy.numerus.workers.dev` | Proxied |
+| `CF_DEV_CUSTOM_DOMAIN` host | `CF_DEV_WORKER_NAME.workers.dev` | Proxied |
+| `CF_PROD_CUSTOM_DOMAIN` host | `CF_PROD_WORKER_NAME.workers.dev` | Proxied |
 
 ### Base URL
 
@@ -220,8 +229,8 @@ The test suite has two layers and can target any runtime via `TEST_BASE_URL`.
 | Unit | Local logic, retry, history rollback | `npm test` | None |
 | Live — Node local | Full proxy via local Node server | `npm run test:live` | `npm run start:dev` running |
 | Live — Worker local | Full proxy via wrangler emulation | `TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live` | `npm run worker:dev` running |
-| Live — CF dev | Full proxy via deployed dev Worker | `TEST_BASE_URL=https://aiproxy-dev.numerus.app npm run test:live` | Worker deployed, DNS live |
-| Live — CF prod | Full proxy via deployed prod Worker | `TEST_BASE_URL=https://aiproxy.numerus.app npm run test:live` | Worker deployed, DNS live |
+| Live — CF dev | Full proxy via deployed dev Worker | `TEST_BASE_URL=https://<CF_DEV_CUSTOM_DOMAIN> npm run test:live` | Worker deployed, DNS live |
+| Live — CF prod | Full proxy via deployed prod Worker | `TEST_BASE_URL=https://<CF_PROD_CUSTOM_DOMAIN> npm run test:live` | Worker deployed, DNS live |
 | Live — DO App | Full proxy via deployed DO App | `TEST_BASE_URL=https://<DO_APP_URL> npm run test:live` | DO App running |
 | All local | Unit + Node live together | `npm run test:all` | `npm run start:dev` running |
 
@@ -243,10 +252,10 @@ npm run test:live
 TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live
 
 # Deployed Cloudflare dev Worker
-TEST_BASE_URL=https://aiproxy-dev.numerus.app npm run test:live
+TEST_BASE_URL=https://<CF_DEV_CUSTOM_DOMAIN> npm run test:live
 
 # Deployed Cloudflare production Worker
-TEST_BASE_URL=https://aiproxy.numerus.app npm run test:live
+TEST_BASE_URL=https://<CF_PROD_CUSTOM_DOMAIN> npm run test:live
 ```
 
 Tests can skip individual providers when an upstream returns a transient overload (e.g. Gemini high demand).

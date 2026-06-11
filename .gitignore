@@ -1,6 +1,9 @@
 .env
 .env.modelkeys
 .env.modelspecs
+.worker.local.env
+.worker.local.env.*
+!.worker.local.env.example
 node_modules/
 npm-debug.log*
 yarn-debug.log*

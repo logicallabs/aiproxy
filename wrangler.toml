@@ -1,14 +1,15 @@
-# Default environment = dev
-name = "aiproxy-dev"
+# This file is a generic template. Real worker names, routes, and zones are
+# loaded from the untracked .worker.local.env file by scripts/worker.sh.
+name = "worker-dev"
 main = "src/worker/worker.js"
 compatibility_date = "2026-06-11"
-account_id = "d647acf6b7120bc9675f258cbaf8af99"
+account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
 workers_dev = true
 preview_urls = false
 
 [[routes]]
-pattern = "aiproxy-dev.numerus.app/*"
-zone_name = "numerus.app"
+pattern = "dev-worker.example.com/*"
+zone_name = "example.com"
 
 [vars]
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -24,19 +25,20 @@ UPSTREAM_TIMEOUT_MS = "30000"
 #   npx wrangler secret put OPENROUTER_API_KEY
 #   npx wrangler secret put DEEPSEEK_API_KEY
 #
-# For production environment add -e production to each command above.
+# Before using the Worker on this machine, run `npx wrangler login` once.
+# The restore script checks that auth exists before it deploys.
 
 # ---------------------------------------------------------------------------
 # Production environment  (npx wrangler deploy -e production)
 # ---------------------------------------------------------------------------
 [env.production]
-name = "aiproxy"
+name = "worker-prod"
 workers_dev = false
 preview_urls = false
 
 [[env.production.routes]]
-pattern = "aiproxy-worker.numerus.app/*"
-zone_name = "numerus.app"
+pattern = "worker.example.com/*"
+zone_name = "example.com"
 
 [env.production.vars]
 GEMINI_MODEL = "gemini-2.5-flash"
