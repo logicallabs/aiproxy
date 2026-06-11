@@ -1,3 +1,4 @@
+# Default environment = dev
 name = "aiproxy-dev"
 main = "src/worker/worker.js"
 compatibility_date = "2026-06-11"
@@ -17,8 +18,30 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 UPSTREAM_TIMEOUT_MS = "30000"
 
-# Configure secrets with:
-# wrangler secret put GEMINI_API_KEY
-# wrangler secret put GITHUB_TOKEN
-# wrangler secret put OPENROUTER_API_KEY
-# wrangler secret put DEEPSEEK_API_KEY
+# Secrets (set once per environment, never stored here):
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put GITHUB_TOKEN
+#   npx wrangler secret put OPENROUTER_API_KEY
+#   npx wrangler secret put DEEPSEEK_API_KEY
+#
+# For production environment add -e production to each command above.
+
+# ---------------------------------------------------------------------------
+# Production environment  (npx wrangler deploy -e production)
+# ---------------------------------------------------------------------------
+[env.production]
+name = "aiproxy"
+workers_dev = false
+preview_urls = false
+
+[[env.production.routes]]
+pattern = "aiproxy-worker.numerus.app/*"
+zone_name = "numerus.app"
+
+[env.production.vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
+GH_URL = "https://models.inference.ai.azure.com/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+UPSTREAM_TIMEOUT_MS = "30000"

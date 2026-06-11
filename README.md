@@ -17,8 +17,10 @@ Implementation phases, scope, and checkpoints are documented in:
 
 Current branch-level implementation status:
 
-- Phase 1 started: shared runtime-agnostic core modules added under `src/core/`
-- Phase 2 started: runtime adapters added for Node (`src/node/server.js`) and Cloudflare Worker (`src/worker/worker.js`)
+- Phase 1 complete: shared runtime-agnostic core modules under `src/core/`
+- Phase 2 complete: Node adapter (`src/node/server.js`) and Worker adapter (`src/worker/worker.js`)
+- Phase 3 complete: `wrangler.toml` has `dev` (default) and `production` environments with separate worker names and routes
+- Phase 4 complete: full test matrix documented below
 
 ## What It Does
 
@@ -108,32 +110,63 @@ npm start
 
 The server will fail to reach upstream providers if the required variables are not already set — there is no interactive prompt in this path.
 
-## Cloudflare Worker (Dev / Deploy)
+## Cloudflare Worker
 
-The Worker adapter uses the same API route contract as Node for `POST` endpoints.
+The Worker adapter uses the same API route contract as Node for `POST` endpoints. Static file serving is not supported in the Worker — it handles API routes only.
 
-### Configuration
+`wrangler.toml` defines two environments:
 
-- Worker config: `wrangler.toml`
-- Set secrets in Cloudflare for tokens:
-	- `wrangler secret put GEMINI_API_KEY`
-	- `wrangler secret put GITHUB_TOKEN`
-	- `wrangler secret put OPENROUTER_API_KEY`
-	- `wrangler secret put DEEPSEEK_API_KEY`
-- Set non-secret vars in `wrangler.toml` under `[vars]`:
-	- `GEMINI_URL`, `GH_URL`, `OPENROUTER_URL`, `DEEPSEEK_URL`, `UPSTREAM_TIMEOUT_MS`
+| Environment | Worker name | Custom domain | Command |
+|---|---|---|---|
+| dev (default) | `aiproxy-dev` | `aiproxy-dev.numerus.app` | `npm run worker:deploy` |
+| production | `aiproxy` | `aiproxy-worker.numerus.app` | `npm run worker:deploy:prod` |
 
-### Run Worker Locally
+> `aiproxy.numerus.app` currently points to the DigitalOcean App. When you decide to cut over to the Worker, update the production route in `wrangler.toml` to `aiproxy.numerus.app/*`, redeploy with `npm run worker:deploy:prod`, and update the DNS CNAME. No other changes needed.
+
+### First-time secret setup
+
+Run once per environment. Secrets are stored in Cloudflare and never in `wrangler.toml`.
+
+```bash
+# Dev secrets (default)
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put GITHUB_TOKEN
+npx wrangler secret put OPENROUTER_API_KEY
+npx wrangler secret put DEEPSEEK_API_KEY
+
+# Production secrets
+npx wrangler secret put GEMINI_API_KEY -e production
+npx wrangler secret put GITHUB_TOKEN -e production
+npx wrangler secret put OPENROUTER_API_KEY -e production
+npx wrangler secret put DEEPSEEK_API_KEY -e production
+```
+
+### Run Worker locally (emulated)
 
 ```bash
 npm run worker:dev
 ```
 
-### Deploy Worker
+Wrangler runs the Worker on `http://127.0.0.1:8787` using a local runtime emulation layer.
+
+### Deploy to Cloudflare
 
 ```bash
+# Deploy to dev environment
 npm run worker:deploy
+
+# Deploy to production environment
+npm run worker:deploy:prod
 ```
+
+### Custom domain DNS
+
+Cloudflare route bindings in `wrangler.toml` do not create DNS records automatically. Each hostname needs a CNAME in the `numerus.app` zone:
+
+| Name | Target | Proxy |
+|---|---|---|
+| `aiproxy-dev` | `aiproxy-dev.numerus.workers.dev` | Proxied |
+| `aiproxy-worker` | `aiproxy.numerus.workers.dev` | Proxied |
 
 ### Base URL
 
@@ -178,51 +211,47 @@ Errors are normalized to:
 
 ## Testing
 
-The test suite is split into deterministic unit tests and opt-in live integration tests.
+The test suite has two layers and can target any runtime via `TEST_BASE_URL`.
+
+### Test Matrix
+
+| Layer | What it tests | Command | Prerequisites |
+|---|---|---|---|
+| Unit | Local logic, retry, history rollback | `npm test` | None |
+| Live — Node local | Full proxy via local Node server | `npm run test:live` | `npm run start:dev` running |
+| Live — Worker local | Full proxy via wrangler emulation | `TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live` | `npm run worker:dev` running |
+| Live — CF dev | Full proxy via deployed dev Worker | `TEST_BASE_URL=https://aiproxy-dev.numerus.app npm run test:live` | Worker deployed, DNS live |
+| Live — CF prod | Full proxy via deployed prod Worker | `TEST_BASE_URL=https://aiproxy.numerus.app npm run test:live` | Worker deployed, DNS live |
+| Live — DO App | Full proxy via deployed DO App | `TEST_BASE_URL=https://<DO_APP_URL> npm run test:live` | DO App running |
+| All local | Unit + Node live together | `npm run test:all` | `npm run start:dev` running |
 
 ### Unit Tests
-
-Run local logic only:
 
 ```bash
 npm test
 ```
 
-These tests do not call the network. They cover retry behavior, empty-response handling, rollback of failed user turns, and conversation-history updates. This is the CI-friendly layer because failures here usually mean local code regressed.
+No network required. Covers retry behavior, empty-response handling, rollback of failed user turns, and conversation-history updates. CI-safe.
 
 ### Live Integration Tests
 
-Run the real end-to-end path through the local proxy and upstream providers:
-
 ```bash
+# Node local (requires: npm run start:dev in another terminal)
 npm run test:live
-```
 
-You can also target a deployed environment by overriding the test base URL:
-
-```bash
-TEST_BASE_URL=https://${AIPROXY_DEPLOYED_URL} npm run test:live
-```
-
-For Cloudflare Worker local dev, point tests to the wrangler dev URL:
-
-```bash
+# Worker local emulation (requires: npm run worker:dev in another terminal)
 TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live
+
+# Deployed Cloudflare dev Worker
+TEST_BASE_URL=https://aiproxy-dev.numerus.app npm run test:live
+
+# Deployed Cloudflare production Worker
+TEST_BASE_URL=https://aiproxy.numerus.app npm run test:live
 ```
 
-Requirements:
+Tests can skip individual providers when an upstream returns a transient overload (e.g. Gemini high demand).
 
-- the local proxy server is already running (via `bash start.sh`, `npm run start:dev`, or `npm start` with env vars pre-set)
-- valid provider credentials are available
-- upstream providers are reachable
-
-The live test helpers in this folder now cover Gemini, GitHub Models, OpenRouter, and DeepSeek through the local proxy endpoints.
-
-These tests can skip when a provider returns a transient overload response such as Gemini high demand.
-
-### Run Everything
-
-Run both layers:
+### Run Unit + Node Live Together
 
 ```bash
 npm run test:all

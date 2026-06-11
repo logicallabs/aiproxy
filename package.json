@@ -7,8 +7,9 @@
   "scripts": {
     "start": "node server.cjs",
     "start:dev": "bash start.sh",
-    "worker:dev": "npx wrangler dev",
-    "worker:deploy": "npx wrangler deploy",
+    "worker:dev": "npx wrangler dev --env=\"\"",
+    "worker:deploy": "npx wrangler deploy --env=\"\"",
+    "worker:deploy:prod": "npx wrangler deploy -e production",
     "test": "node --test test/unit.test.js",
     "test:live": "node --test test/test.js",
     "test:all": "node --test test/unit.test.js test/test.js"
