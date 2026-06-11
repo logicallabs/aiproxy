@@ -4,6 +4,22 @@ This folder contains a lightweight Node.js reverse proxy server that forwards mo
 
 The server also serves static files from this folder for `GET` requests.
 
+## Dual-Runtime Port Status
+
+This repo now includes a phased port toward dual runtime support:
+
+- Node runtime for local development and DigitalOcean App Platform
+- Cloudflare Worker runtime adapter
+
+Implementation phases, scope, and checkpoints are documented in:
+
+- `DUAL_RUNTIME_PORT_PLAN.md`
+
+Current branch-level implementation status:
+
+- Phase 1 started: shared runtime-agnostic core modules added under `src/core/`
+- Phase 2 started: runtime adapters added for Node (`src/node/server.js`) and Cloudflare Worker (`src/worker/worker.js`)
+
 ## What It Does
 
 - Accepts `POST` requests from browser or test clients
@@ -92,6 +108,33 @@ npm start
 
 The server will fail to reach upstream providers if the required variables are not already set — there is no interactive prompt in this path.
 
+## Cloudflare Worker (Dev / Deploy)
+
+The Worker adapter uses the same API route contract as Node for `POST` endpoints.
+
+### Configuration
+
+- Worker config: `wrangler.toml`
+- Set secrets in Cloudflare for tokens:
+	- `wrangler secret put GEMINI_API_KEY`
+	- `wrangler secret put GITHUB_TOKEN`
+	- `wrangler secret put OPENROUTER_API_KEY`
+	- `wrangler secret put DEEPSEEK_API_KEY`
+- Set non-secret vars in `wrangler.toml` under `[vars]`:
+	- `GEMINI_URL`, `GH_URL`, `OPENROUTER_URL`, `DEEPSEEK_URL`, `UPSTREAM_TIMEOUT_MS`
+
+### Run Worker Locally
+
+```bash
+npm run worker:dev
+```
+
+### Deploy Worker
+
+```bash
+npm run worker:deploy
+```
+
 ### Base URL
 
 ```text
@@ -159,6 +202,12 @@ You can also target a deployed environment by overriding the test base URL:
 
 ```bash
 TEST_BASE_URL=https://${AIPROXY_DEPLOYED_URL} npm run test:live
+```
+
+For Cloudflare Worker local dev, point tests to the wrangler dev URL:
+
+```bash
+TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live
 ```
 
 Requirements:

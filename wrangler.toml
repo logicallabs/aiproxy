@@ -1,0 +1,24 @@
+name = "aiproxy-dev"
+main = "src/worker/worker.js"
+compatibility_date = "2026-06-11"
+account_id = "d647acf6b7120bc9675f258cbaf8af99"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "aiproxy-dev.numerus.app/*"
+zone_name = "numerus.app"
+
+[vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
+GH_URL = "https://models.inference.ai.azure.com/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+UPSTREAM_TIMEOUT_MS = "30000"
+
+# Configure secrets with:
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put GITHUB_TOKEN
+# wrangler secret put OPENROUTER_API_KEY
+# wrangler secret put DEEPSEEK_API_KEY
