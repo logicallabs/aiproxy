@@ -4,7 +4,7 @@
 
 Keep one repository that can run in three environments without changing client contracts:
 
-1. Local machine (Richard)
+1. Local machine (developer)
 2. DigitalOcean App Platform (Node runtime)
 3. Cloudflare Worker (edge runtime)
 
