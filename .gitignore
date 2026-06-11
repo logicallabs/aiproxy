@@ -1,6 +1,9 @@
 .env
 .env.modelkeys
 .env.modelspecs
+.node.local.env
+.node.local.env.*
+!.node.local.env.example
 .worker.local.env
 .worker.local.env.*
 !.worker.local.env.example

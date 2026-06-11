@@ -10,6 +10,11 @@ elif [[ -f ".env.modelspecs" ]]; then
   source ./.env.modelspecs
 fi
 
+# Optional machine-specific Node/DO overrides can live in .node.local.env.
+if [[ -f ".node.local.env" ]]; then
+  source ./.node.local.env
+fi
+
 # Ensure sourced values are available to node.
 export PORT="${PORT:-3000}"
 export GEMINI_API_KEY="${GEMINI_API_KEY:-}"
@@ -59,4 +64,4 @@ if [[ -z "${DEEPSEEK_URL:-}" ]]; then
 fi
 
 echo "Starting unified server on http://localhost:${PORT} (Gemini, GitHub Models, OpenRouter, and DeepSeek routes configured as available) ..."
-exec /usr/local/bin/node server.cjs
+exec node server.cjs

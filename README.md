@@ -100,6 +100,15 @@ Or via npm:
 npm run start:dev
 ```
 
+If you want an explicit Node-side check before starting, use:
+
+```bash
+npm run node:check
+npm run node:dev
+```
+
+The Node helper reads `.node.local.env` when present for machine-specific settings that should not be committed.
+
 ### Option B — via npm start (manual env management)
 
 If your environment variables are already exported in your shell session (e.g. via your shell profile or a separate env tool), you can start the server directly without the shell script:
@@ -109,6 +118,12 @@ npm start
 ```
 
 The server will fail to reach upstream providers if the required variables are not already set — there is no interactive prompt in this path.
+
+The local machine needs all of the following before the Node helper can run cleanly:
+
+- `node` available on PATH
+- `.env` with provider credentials
+- optional `.node.local.env` with Node/DO machine-specific overrides
 
 ## Cloudflare Worker
 
