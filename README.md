@@ -183,6 +183,30 @@ npm run worker:staging:deploy
 npm run worker:prod:deploy
 ```
 
+### Branch-based deployment (primary)
+
+Deployments are automated via GitHub Actions in `.github/workflows/deploy-workers.yml`.
+
+- Push to `staging` branch deploys `aiproxy-staging`
+- Push to `main` branch deploys `aiproxy`
+- Manual trigger is available in Actions via `workflow_dispatch`
+
+Set these repository settings before enabling the workflow:
+
+- GitHub Secret: `CLOUDFLARE_API_TOKEN`
+- GitHub Variable: `CF_ACCOUNT_ID`
+- GitHub Variable: `CF_ZONE_NAME`
+- GitHub Variable: `CF_STAGING_WORKER_NAME` (example: `aiproxy-staging`)
+- GitHub Variable: `CF_STAGING_WORKER_ROUTE` (example: `aiproxy-staging.numerus.app/*`)
+- GitHub Variable: `CF_PROD_WORKER_NAME` (example: `aiproxy`)
+- GitHub Variable: `CF_PROD_WORKER_ROUTE` (example: `aiproxy-worker.numerus.app/*`)
+
+Optional Slack notifications:
+
+- GitHub Secret: `SLACK_DEPLOY_WEBHOOK_URL`
+
+If `SLACK_DEPLOY_WEBHOOK_URL` is set, the workflow posts both success and failure deployment notifications to Slack.
+
 ### Custom domain DNS
 
 Cloudflare route bindings in `wrangler.toml` do not create DNS records automatically. Each hostname needs a CNAME in your DNS zone:

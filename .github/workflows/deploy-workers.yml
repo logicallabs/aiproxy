@@ -1,0 +1,182 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment target
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: worker-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+      CF_ZONE_NAME: ${{ vars.CF_ZONE_NAME }}
+      CF_STAGING_WORKER_NAME: ${{ vars.CF_STAGING_WORKER_NAME }}
+      CF_STAGING_WORKER_ROUTE: ${{ vars.CF_STAGING_WORKER_ROUTE }}
+      CF_PROD_WORKER_NAME: ${{ vars.CF_PROD_WORKER_NAME }}
+      CF_PROD_WORKER_ROUTE: ${{ vars.CF_PROD_WORKER_ROUTE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Resolve target environment
+        id: target
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            target="${{ github.event.inputs.environment }}"
+          elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            target="production"
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            target="staging"
+          else
+            echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          echo "target=${target}" >> "${GITHUB_OUTPUT}"
+          echo "Deploy target: ${target}"
+
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          missing=0
+          required=(
+            CLOUDFLARE_API_TOKEN
+            CF_ACCOUNT_ID
+            CF_ZONE_NAME
+            CF_STAGING_WORKER_NAME
+            CF_STAGING_WORKER_ROUTE
+            CF_PROD_WORKER_NAME
+            CF_PROD_WORKER_ROUTE
+          )
+          for key in "${required[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "Missing required GitHub configuration: ${key}" >&2
+              missing=1
+            fi
+          done
+
+          if [[ "${missing}" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Create worker environment file
+        shell: bash
+        run: |
+          cat > .worker.local.env <<EOF
+          CF_ACCOUNT_ID=${CF_ACCOUNT_ID}
+          CF_ZONE_NAME=${CF_ZONE_NAME}
+          CF_STAGING_WORKER_NAME=${CF_STAGING_WORKER_NAME}
+          CF_STAGING_WORKER_ROUTE=${CF_STAGING_WORKER_ROUTE}
+          CF_PROD_WORKER_NAME=${CF_PROD_WORKER_NAME}
+          CF_PROD_WORKER_ROUTE=${CF_PROD_WORKER_ROUTE}
+          EOF
+
+      - name: Deploy Cloudflare Worker
+        id: deploy
+        shell: bash
+        run: |
+          bash scripts/worker.sh deploy "${{ steps.target.outputs.target }}"
+
+      - name: Slack notify success
+        if: success() && secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          payload=$(cat <<JSON
+          {
+            "text": "aiproxy worker deploy succeeded",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": ":white_check_mark: *aiproxy deploy succeeded*"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  { "type": "mrkdwn", "text": "*Environment:*\n${{ steps.target.outputs.target }}" },
+                  { "type": "mrkdwn", "text": "*Branch:*\n${GITHUB_REF_NAME}" },
+                  { "type": "mrkdwn", "text": "*Commit:*\n${GITHUB_SHA}" },
+                  { "type": "mrkdwn", "text": "*Actor:*\n${GITHUB_ACTOR}" }
+                ]
+              },
+              {
+                "type": "context",
+                "elements": [
+                  { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>" }
+                ]
+              }
+            ]
+          }
+          JSON
+          )
+
+          curl -sS -X POST -H "Content-type: application/json" --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
+
+      - name: Slack notify failure
+        if: failure() && secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          payload=$(cat <<JSON
+          {
+            "text": "aiproxy worker deploy failed",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": ":x: *aiproxy deploy failed*"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  { "type": "mrkdwn", "text": "*Environment:*\n${{ steps.target.outputs.target }}" },
+                  { "type": "mrkdwn", "text": "*Branch:*\n${GITHUB_REF_NAME}" },
+                  { "type": "mrkdwn", "text": "*Commit:*\n${GITHUB_SHA}" },
+                  { "type": "mrkdwn", "text": "*Actor:*\n${GITHUB_ACTOR}" }
+                ]
+              },
+              {
+                "type": "context",
+                "elements": [
+                  { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>" }
+                ]
+              }
+            ]
+          }
+          JSON
+          )
+
+          curl -sS -X POST -H "Content-type: application/json" --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
