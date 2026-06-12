@@ -135,19 +135,19 @@ Before using the Worker on a machine, run `npx wrangler login` once so Wrangler 
 
 | Environment | Worker name | Custom domain | Command |
 |---|---|---|---|
-| dev (default) | `CF_DEV_WORKER_NAME` | `CF_DEV_CUSTOM_DOMAIN` | `npm run worker:deploy` |
-| production | `CF_PROD_WORKER_NAME` | `CF_PROD_CUSTOM_DOMAIN` | `npm run worker:deploy:prod` |
+| staging (default) | `CF_STAGING_WORKER_NAME` | `CF_STAGING_CUSTOM_DOMAIN` | `npm run worker:staging:deploy` |
+| production | `CF_PROD_WORKER_NAME` | `CF_PROD_CUSTOM_DOMAIN` | `npm run worker:prod:deploy` |
 
-> When you decide to cut over the public production domain to the Worker, update the values in your local `.worker.local.env` file, rerun `npm run worker:deploy:prod`, and change the DNS CNAME. No committed file needs to change for that cutover.
+> When you decide to cut over the public production domain to the Worker, update the values in your local `.worker.local.env` file, rerun `npm run worker:prod:deploy`, and change the DNS CNAME. No committed file needs to change for that cutover.
 
 ### First-time secret setup
 
 Run once per environment. Secrets are stored in Cloudflare and never in `wrangler.toml`.
 
 ```bash
-# Dev secrets (default)
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put GITHUB_TOKEN
+# Staging secrets (default)
+npx wrangler secret put GEMINI_API_KEY --env staging
+npx wrangler secret put GITHUB_TOKEN --env staging
 npx wrangler secret put OPENROUTER_API_KEY
 npx wrangler secret put DEEPSEEK_API_KEY
 
@@ -176,11 +176,11 @@ The local machine needs all of the following before this can work:
 ### Deploy to Cloudflare
 
 ```bash
-# Deploy to dev environment
-npm run worker:deploy
+# Deploy to staging environment
+npm run worker:staging:deploy
 
 # Deploy to production environment
-npm run worker:deploy:prod
+npm run worker:prod:deploy
 ```
 
 ### Custom domain DNS
@@ -189,7 +189,7 @@ Cloudflare route bindings in `wrangler.toml` do not create DNS records automatic
 
 | Name | Target | Proxy |
 |---|---|---|
-| `CF_DEV_CUSTOM_DOMAIN` host | `CF_DEV_WORKER_NAME.workers.dev` | Proxied |
+| `CF_STAGING_CUSTOM_DOMAIN` host | `CF_STAGING_WORKER_NAME.workers.dev` | Proxied |
 | `CF_PROD_CUSTOM_DOMAIN` host | `CF_PROD_WORKER_NAME.workers.dev` | Proxied |
 
 ### Base URL

@@ -258,11 +258,11 @@ npm run node:dev
 # One-time setup per machine
 npx wrangler login
 
-# Deploy to dev environment (aiproxy-dev.numerus.workers.dev)
-npm run worker:deploy
+# Deploy to staging environment (aiproxy-staging.numerus.workers.dev)
+npm run worker:staging:deploy
 
 # Deploy to production (aiproxy.numerus.workers.dev)
-npm run worker:deploy:prod
+npm run worker:prod:deploy
 
 # Run locally (emulation)
 npm run worker:dev
@@ -278,6 +278,38 @@ npm run worker:dev
 - Generic `wrangler.toml` checked into repo with placeholders (e.g., `YOUR_CLOUDFLARE_ACCOUNT_ID`)
 - Actual values in untracked `.worker.local.env` (Cloudflare account ID, zone name, custom domain)
 - `scripts/worker.sh` reads `.worker.local.env`, generates temporary runtime config, deploys
+
+### Deployment Workflow Modes (Direct vs Git-Driven)
+
+Both platforms can support multiple deployment paths. In practice, choose one primary path per environment to avoid drift and "last deploy wins" confusion.
+
+| Platform | Direct Deploy | GitHub-Driven Deploy |
+|----------|---------------|----------------------|
+| Cloudflare Workers | Yes. Current setup uses direct deploy through Wrangler (`npm run worker:deploy`, `npm run worker:deploy:prod`). | Yes, optional. Workers can be connected to a GitHub repo/branch in Cloudflare to auto-deploy on push. |
+| DigitalOcean App Platform | Possible via app spec/API/CLI workflows, but this is not the primary path in this repo. | Yes. Current DO app setup is GitHub-connected and builds/deploys from branch pushes. |
+
+**Current source-of-truth in this repository:**
+- Cloudflare Workers: GitHub-connected deploy flow.
+- DigitalOcean App Platform: GitHub-connected deploy flow.
+
+**Recommendation (conditional):**
+- Current plan: use one deployment method per target environment.
+- Only if both methods are enabled for the same target, document precedence and release process clearly.
+
+### Branch Mapping for Workers (Current Decision)
+
+- Staging Worker deploys from develop.
+- Production Worker deploys from main.
+- Keep environment secrets fully separated between staging and production Workers.
+
+### Staging Consumer Policy (For Downstream Projects)
+
+If another project has a staging environment that calls aiproxy, choose one of these policies and keep it consistent:
+
+1. Stability-first staging: point staging to aiproxy production (main-backed Worker).
+2. Integration-first staging: point staging to aiproxy staging (develop-backed Worker).
+
+Current recommendation: start with stability-first unless you are actively validating new aiproxy behavior in staging.
 
 ---
 
@@ -297,10 +329,10 @@ Test any runtime by setting `TEST_BASE_URL`:
 TEST_BASE_URL=http://localhost:3000 npm run test:live
 
 # Test Cloudflare workers.dev (if deployed)
-TEST_BASE_URL=https://aiproxy-dev.numerus.workers.dev npm run test:live
+TEST_BASE_URL=https://aiproxy-staging.numerus.workers.dev npm run test:live
 
 # Test custom domain
-TEST_BASE_URL=https://aiproxy-dev.numerus.app npm run test:live
+TEST_BASE_URL=https://aiproxy-staging.numerus.app npm run test:live
 
 # Test DigitalOcean App
 TEST_BASE_URL=https://aiproxy.ondigitalocean.app npm run test:live
@@ -312,7 +344,7 @@ TEST_BASE_URL=https://aiproxy.ondigitalocean.app npm run test:live
 |-------------|---------|-------|
 | Local Node | `npm run start` + `TEST_BASE_URL=http://localhost:3000 npm run test:live` | Full debugging, fastest feedback |
 | Worker (local emulation) | `npm run worker:dev` + `TEST_BASE_URL=http://localhost:8787 npm run test:live` | Tests Worker runtime without deploying |
-| Worker (dev, deployed) | Deploy to CF, then `TEST_BASE_URL=https://aiproxy-dev.numerus.workers.dev npm run test:live` | Real edge execution |
+| Worker (staging, deployed) | Deploy to CF, then `TEST_BASE_URL=https://aiproxy-staging.numerus.workers.dev npm run test:live` | Real edge execution |
 | Worker (prod, deployed) | Deploy to CF prod, then `TEST_BASE_URL=https://aiproxy.numerus.workers.dev npm run test:live` | Production validation |
 | DO App | Running on do.app domain, then `TEST_BASE_URL=https://aiproxy.ondigitalocean.app npm run test:live` | Traditional server testing |
 
@@ -406,10 +438,10 @@ Deploy to **both** and choose by use case:
 - [ ] `npx wrangler login` (one-time auth per machine)
 - [ ] Copy `.worker.local.env.example` to `.worker.local.env`
 - [ ] Fill in `.worker.local.env`: CF_ACCOUNT_ID, CF_ZONE_NAME, custom domains
-- [ ] `npm run worker:deploy` (deploys to dev environment)
-- [ ] Upload secrets: `npx wrangler secret put GEMINI_API_KEY --env dev` (for each secret)
+- [ ] `npm run worker:staging:deploy` (deploys to staging environment)
+- [ ] Upload secrets: `npx wrangler secret put GEMINI_API_KEY --env staging` (for each secret)
 - [ ] Verify custom domain DNS: Create CNAME records in Cloudflare DNS pointing to Workers
-- [ ] Test: `TEST_BASE_URL=https://aiproxy-dev.numerus.workers.dev npm run test:live`
+- [ ] Test: `TEST_BASE_URL=https://aiproxy-staging.numerus.workers.dev npm run test:live`
 
 ### Monitoring & Logs
 
@@ -419,7 +451,7 @@ Deploy to **both** and choose by use case:
 - Custom logging to stdout (captured by DO)
 
 **Cloudflare Workers:**
-- View real-time logs in Cloudflare Dashboard (Workers > aiproxy-dev > Logs)
+- View real-time logs in Cloudflare Dashboard (Workers > aiproxy-staging > Logs)
 - Enable Logpush for external log aggregation
 - `wrangler tail` for local log streaming (requires login)
 
