@@ -109,41 +109,92 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
         shell: bash
         run: |
+          set -euo pipefail
+
           if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
             echo "SLACK_WEBHOOK_URL not set; skipping success notification"
             exit 0
           fi
 
-          payload=$(cat <<JSON
-          {
-            "text": "aiproxy worker deploy succeeded",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": ":white_check_mark: *aiproxy deploy succeeded*"
+          target="${{ steps.target.outputs.target }}"
+          short_sha="${GITHUB_SHA:0:7}"
+          commit_url="${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [[ "$target" == "production" ]]; then
+            worker_name="${CF_PROD_WORKER_NAME}"
+            route_pattern="${CF_PROD_WORKER_ROUTE}"
+          else
+            worker_name="${CF_STAGING_WORKER_NAME}"
+            route_pattern="${CF_STAGING_WORKER_ROUTE}"
+          fi
+
+          route_url=""
+          if [[ -n "${route_pattern:-}" ]]; then
+            route_host="${route_pattern%%/*}"
+            if [[ -n "$route_host" ]]; then
+              route_url="https://${route_host}"
+            fi
+          fi
+
+          payload=$(jq -n \
+            --arg env "$target" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg short_sha "$short_sha" \
+            --arg commit_url "$commit_url" \
+            --arg run_url "$run_url" \
+            --arg worker_name "$worker_name" \
+            --arg route_url "$route_url" \
+            '{
+              text: "[aiproxy] Deploy Succeeded",
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: "aiproxy | " + $env + " | Deploy Succeeded"
+                  }
+                },
+                {
+                  type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: "*Environment*\n" + $env },
+                    { type: "mrkdwn", text: "*Worker*\n" + $worker_name },
+                    { type: "mrkdwn", text: "*Branch*\n" + $branch },
+                    { type: "mrkdwn", text: "*Actor*\n" + $actor },
+                    { type: "mrkdwn", text: "*Commit*\n<" + $commit_url + "|" + $short_sha + ">" }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: (
+                    [
+                      {
+                        type: "button",
+                        text: { type: "plain_text", text: "Open Workflow Run" },
+                        url: $run_url
+                      }
+                    ]
+                    +
+                    (
+                      if ($route_url | test("^https?://")) then
+                        [
+                          {
+                            type: "button",
+                            text: { type: "plain_text", text: "Open Route" },
+                            url: $route_url,
+                            style: "primary"
+                          }
+                        ]
+                      else
+                        []
+                      end
+                    )
+                  )
                 }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  { "type": "mrkdwn", "text": "*Environment:*\n${{ steps.target.outputs.target }}" },
-                  { "type": "mrkdwn", "text": "*Branch:*\n${GITHUB_REF_NAME}" },
-                  { "type": "mrkdwn", "text": "*Commit:*\n${GITHUB_SHA}" },
-                  { "type": "mrkdwn", "text": "*Actor:*\n${GITHUB_ACTOR}" }
-                ]
-              },
-              {
-                "type": "context",
-                "elements": [
-                  { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>" }
-                ]
-              }
-            ]
-          }
-          JSON
-          )
+              ]
+            }')
 
           curl -sS -X POST -H "Content-type: application/json" --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
 
@@ -153,40 +204,91 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
         shell: bash
         run: |
+          set -euo pipefail
+
           if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
             echo "SLACK_WEBHOOK_URL not set; skipping failure notification"
             exit 0
           fi
 
-          payload=$(cat <<JSON
-          {
-            "text": "aiproxy worker deploy failed",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": ":x: *aiproxy deploy failed*"
+          target="${{ steps.target.outputs.target }}"
+          short_sha="${GITHUB_SHA:0:7}"
+          commit_url="${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [[ "$target" == "production" ]]; then
+            worker_name="${CF_PROD_WORKER_NAME}"
+            route_pattern="${CF_PROD_WORKER_ROUTE}"
+          else
+            worker_name="${CF_STAGING_WORKER_NAME}"
+            route_pattern="${CF_STAGING_WORKER_ROUTE}"
+          fi
+
+          route_url=""
+          if [[ -n "${route_pattern:-}" ]]; then
+            route_host="${route_pattern%%/*}"
+            if [[ -n "$route_host" ]]; then
+              route_url="https://${route_host}"
+            fi
+          fi
+
+          payload=$(jq -n \
+            --arg env "$target" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg short_sha "$short_sha" \
+            --arg commit_url "$commit_url" \
+            --arg run_url "$run_url" \
+            --arg worker_name "$worker_name" \
+            --arg route_url "$route_url" \
+            '{
+              text: "[aiproxy] Deploy Failed",
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: "aiproxy | " + $env + " | Deploy Failed"
+                  }
+                },
+                {
+                  type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: "*Environment*\n" + $env },
+                    { type: "mrkdwn", text: "*Worker*\n" + $worker_name },
+                    { type: "mrkdwn", text: "*Branch*\n" + $branch },
+                    { type: "mrkdwn", text: "*Actor*\n" + $actor },
+                    { type: "mrkdwn", text: "*Commit*\n<" + $commit_url + "|" + $short_sha + ">" }
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: (
+                    [
+                      {
+                        type: "button",
+                        text: { type: "plain_text", text: "Open Workflow Run" },
+                        url: $run_url,
+                        style: "danger"
+                      }
+                    ]
+                    +
+                    (
+                      if ($route_url | test("^https?://")) then
+                        [
+                          {
+                            type: "button",
+                            text: { type: "plain_text", text: "Open Route" },
+                            url: $route_url
+                          }
+                        ]
+                      else
+                        []
+                      end
+                    )
+                  )
                 }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  { "type": "mrkdwn", "text": "*Environment:*\n${{ steps.target.outputs.target }}" },
-                  { "type": "mrkdwn", "text": "*Branch:*\n${GITHUB_REF_NAME}" },
-                  { "type": "mrkdwn", "text": "*Commit:*\n${GITHUB_SHA}" },
-                  { "type": "mrkdwn", "text": "*Actor:*\n${GITHUB_ACTOR}" }
-                ]
-              },
-              {
-                "type": "context",
-                "elements": [
-                  { "type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>" }
-                ]
-              }
-            ]
-          }
-          JSON
-          )
+              ]
+            }')
 
           curl -sS -X POST -H "Content-type: application/json" --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
