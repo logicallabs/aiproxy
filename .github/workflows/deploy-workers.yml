@@ -104,11 +104,16 @@ jobs:
           bash scripts/worker.sh deploy "${{ steps.target.outputs.target }}"
 
       - name: Slack notify success
-        if: success() && secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+        if: success()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
         shell: bash
         run: |
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "SLACK_WEBHOOK_URL not set; skipping success notification"
+            exit 0
+          fi
+
           payload=$(cat <<JSON
           {
             "text": "aiproxy worker deploy succeeded",
@@ -143,11 +148,16 @@ jobs:
           curl -sS -X POST -H "Content-type: application/json" --data "$payload" "$SLACK_WEBHOOK_URL" >/dev/null
 
       - name: Slack notify failure
-        if: failure() && secrets.SLACK_DEPLOY_WEBHOOK_URL != ''
+        if: failure()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
         shell: bash
         run: |
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "SLACK_WEBHOOK_URL not set; skipping failure notification"
+            exit 0
+          fi
+
           payload=$(cat <<JSON
           {
             "text": "aiproxy worker deploy failed",
