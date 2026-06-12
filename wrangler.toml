@@ -1,0 +1,70 @@
+# This file is a generic template. Real worker names, routes, and zones are
+# loaded from the untracked .worker.local.env file by scripts/worker.sh.
+# NOTE: The top-level name is a placeholder; actual names are in [env.staging] and [env.production]
+name = "aiproxy-placeholder"
+main = "src/worker/worker.js"
+compatibility_date = "2026-06-11"
+account_id = "d647acf6b7120bc9675f258cbaf8af99"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "staging-worker.example.com/*"
+zone_name = "example.com"
+
+[vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
+GH_URL = "https://models.inference.ai.azure.com/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+UPSTREAM_TIMEOUT_MS = "30000"
+
+# Secrets (set once per environment, never stored here):
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put GITHUB_TOKEN
+#   npx wrangler secret put OPENROUTER_API_KEY
+#   npx wrangler secret put DEEPSEEK_API_KEY
+#
+# Before using the Worker on this machine, run `npx wrangler login` once.
+# The restore script checks that auth exists before it deploys.
+
+# ---------------------------------------------------------------------------
+# Staging environment  (npx wrangler deploy --env=staging)
+# ---------------------------------------------------------------------------
+[env.staging]
+name = "worker-staging"
+workers_dev = true
+preview_urls = false
+
+[[env.staging.routes]]
+pattern = "staging-worker.example.com/*"
+zone_name = "example.com"
+
+[env.staging.vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
+GH_URL = "https://models.inference.ai.azure.com/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+UPSTREAM_TIMEOUT_MS = "30000"
+
+# ---------------------------------------------------------------------------
+# Production environment  (npx wrangler deploy -e production)
+# ---------------------------------------------------------------------------
+[env.production]
+name = "worker-prod"
+workers_dev = false
+preview_urls = false
+
+[[env.production.routes]]
+pattern = "worker.example.com/*"
+zone_name = "example.com"
+
+[env.production.vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com"
+GH_URL = "https://models.inference.ai.azure.com/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+UPSTREAM_TIMEOUT_MS = "30000"
