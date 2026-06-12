@@ -153,17 +153,17 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: "aiproxy | " + $env + " | Deploy Succeeded"
+                    text: "aiproxy | \($env) | Deploy Succeeded"
                   }
                 },
                 {
                   type: "section",
                   fields: [
-                    { type: "mrkdwn", text: "*Environment*\n" + $env },
-                    { type: "mrkdwn", text: "*Worker*\n" + $worker_name },
-                    { type: "mrkdwn", text: "*Branch*\n" + $branch },
-                    { type: "mrkdwn", text: "*Actor*\n" + $actor },
-                    { type: "mrkdwn", text: "*Commit*\n<" + $commit_url + "|" + $short_sha + ">" }
+                    { type: "mrkdwn", text: "*Environment*\n\($env)" },
+                    { type: "mrkdwn", text: "*Worker*\n\($worker_name)" },
+                    { type: "mrkdwn", text: "*Branch*\n\($branch)" },
+                    { type: "mrkdwn", text: "*Actor*\n\($actor)" },
+                    { type: "mrkdwn", text: "*Commit*\n<\($commit_url)|\($short_sha)>" }
                   ]
                 },
                 {
@@ -248,17 +248,17 @@ jobs:
                   type: "header",
                   text: {
                     type: "plain_text",
-                    text: "aiproxy | " + $env + " | Deploy Failed"
+                    text: "aiproxy | \($env) | Deploy Failed"
                   }
                 },
                 {
                   type: "section",
                   fields: [
-                    { type: "mrkdwn", text: "*Environment*\n" + $env },
-                    { type: "mrkdwn", text: "*Worker*\n" + $worker_name },
-                    { type: "mrkdwn", text: "*Branch*\n" + $branch },
-                    { type: "mrkdwn", text: "*Actor*\n" + $actor },
-                    { type: "mrkdwn", text: "*Commit*\n<" + $commit_url + "|" + $short_sha + ">" }
+                    { type: "mrkdwn", text: "*Environment*\n\($env)" },
+                    { type: "mrkdwn", text: "*Worker*\n\($worker_name)" },
+                    { type: "mrkdwn", text: "*Branch*\n\($branch)" },
+                    { type: "mrkdwn", text: "*Actor*\n\($actor)" },
+                    { type: "mrkdwn", text: "*Commit*\n<\($commit_url)|\($short_sha)>" }
                   ]
                 },
                 {
