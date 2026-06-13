@@ -4,6 +4,24 @@ This folder contains a lightweight Node.js reverse proxy server that forwards mo
 
 The server also serves static files from this folder for `GET` requests.
 
+## Dual-Runtime Port Status
+
+This repo now includes a phased port toward dual runtime support:
+
+- Node runtime for local development and DigitalOcean App Platform
+- Cloudflare Worker runtime adapter
+
+Implementation phases, scope, and checkpoints are documented in:
+
+- `DUAL_RUNTIME_PORT_PLAN.md`
+
+Current branch-level implementation status:
+
+- Phase 1 complete: shared runtime-agnostic core modules under `src/core/`
+- Phase 2 complete: Node adapter (`src/node/server.js`) and Worker adapter (`src/worker/worker.js`)
+- Phase 3 complete: `wrangler.toml` has `dev` (default) and `production` environments with separate worker names and routes
+- Phase 4 complete: full test matrix documented below
+
 ## What It Does
 
 - Accepts `POST` requests from browser or test clients
@@ -82,6 +100,15 @@ Or via npm:
 npm run start:dev
 ```
 
+If you want an explicit Node-side check before starting, use:
+
+```bash
+npm run node:check
+npm run node:dev
+```
+
+The Node helper reads `.node.local.env` when present for machine-specific settings that should not be committed.
+
 ### Option B — via npm start (manual env management)
 
 If your environment variables are already exported in your shell session (e.g. via your shell profile or a separate env tool), you can start the server directly without the shell script:
@@ -91,6 +118,103 @@ npm start
 ```
 
 The server will fail to reach upstream providers if the required variables are not already set — there is no interactive prompt in this path.
+
+The local machine needs all of the following before the Node helper can run cleanly:
+
+- `node` available on PATH
+- `.env` with provider credentials
+- optional `.node.local.env` with Node/DO machine-specific overrides
+
+## Cloudflare Worker
+
+The Worker adapter uses the same API route contract as Node for `POST` endpoints. Static file serving is not supported in the Worker — it handles API routes only.
+
+Before using the Worker on a machine, run `npx wrangler login` once so Wrangler can authenticate with Cloudflare. The committed files intentionally stay generic; Cloudflare names, routes, account IDs, and zone details live in the untracked `.worker.local.env` file.
+
+`wrangler.toml` is a public template. The restore script renders the actual Cloudflare values from `.worker.local.env`.
+
+| Environment | Worker name | Custom domain | Command |
+|---|---|---|---|
+| staging (default) | `CF_STAGING_WORKER_NAME` | `CF_STAGING_CUSTOM_DOMAIN` | `npm run worker:staging:deploy` |
+| production | `CF_PROD_WORKER_NAME` | `CF_PROD_CUSTOM_DOMAIN` | `npm run worker:prod:deploy` |
+
+> When you decide to cut over the public production domain to the Worker, update the values in your local `.worker.local.env` file, rerun `npm run worker:prod:deploy`, and change the DNS CNAME. No committed file needs to change for that cutover.
+
+### First-time secret setup
+
+Run once per environment. Secrets are stored in Cloudflare and never in `wrangler.toml`.
+
+```bash
+# Staging secrets (default)
+npx wrangler secret put GEMINI_API_KEY --env staging
+npx wrangler secret put GITHUB_TOKEN --env staging
+npx wrangler secret put OPENROUTER_API_KEY
+npx wrangler secret put DEEPSEEK_API_KEY
+
+# Production secrets
+npx wrangler secret put GEMINI_API_KEY -e production
+npx wrangler secret put GITHUB_TOKEN -e production
+npx wrangler secret put OPENROUTER_API_KEY -e production
+npx wrangler secret put DEEPSEEK_API_KEY -e production
+```
+
+### Run Worker locally (emulated)
+
+```bash
+npm run worker:dev
+```
+
+Wrangler runs the Worker on `http://127.0.0.1:8787` using a local runtime emulation layer. The script reads `.env` for API credentials and `.worker.local.env` for Cloudflare-specific names/routes.
+
+The local machine needs all of the following before this can work:
+
+- `npx wrangler login`
+- `.env` with provider credentials
+- `.worker.local.env` with Cloudflare account, zone, worker names, and routes
+- DNS access to the relevant Cloudflare zone if you want the custom domain to resolve
+
+### Deploy to Cloudflare
+
+```bash
+# Deploy to staging environment
+npm run worker:staging:deploy
+
+# Deploy to production environment
+npm run worker:prod:deploy
+```
+
+### Branch-based deployment (primary)
+
+Deployments are automated via GitHub Actions in `.github/workflows/deploy-workers.yml`.
+
+- Push to `staging` branch deploys `aiproxy-staging`
+- Push to `main` branch deploys `aiproxy`
+- Manual trigger is available in Actions via `workflow_dispatch`
+
+Set these repository settings before enabling the workflow:
+
+- GitHub Secret: `CLOUDFLARE_API_TOKEN`
+- GitHub Variable: `CF_ACCOUNT_ID`
+- GitHub Variable: `CF_ZONE_NAME`
+- GitHub Variable: `CF_STAGING_WORKER_NAME` (example: `aiproxy-staging`)
+- GitHub Variable: `CF_STAGING_WORKER_ROUTE` (example: `aiproxy-staging.numerus.app/*`)
+- GitHub Variable: `CF_PROD_WORKER_NAME` (example: `aiproxy`)
+- GitHub Variable: `CF_PROD_WORKER_ROUTE` (example: `aiproxy-worker.numerus.app/*`)
+
+Optional Slack notifications:
+
+- GitHub Secret: `SLACK_DEPLOY_WEBHOOK_URL`
+
+If `SLACK_DEPLOY_WEBHOOK_URL` is set, the workflow posts both success and failure deployment notifications to Slack.
+
+### Custom domain DNS
+
+Cloudflare route bindings in `wrangler.toml` do not create DNS records automatically. Each hostname needs a CNAME in your DNS zone:
+
+| Name | Target | Proxy |
+|---|---|---|
+| `CF_STAGING_CUSTOM_DOMAIN` host | `CF_STAGING_WORKER_NAME.workers.dev` | Proxied |
+| `CF_PROD_CUSTOM_DOMAIN` host | `CF_PROD_WORKER_NAME.workers.dev` | Proxied |
 
 ### Base URL
 
@@ -135,45 +259,47 @@ Errors are normalized to:
 
 ## Testing
 
-The test suite is split into deterministic unit tests and opt-in live integration tests.
+The test suite has two layers and can target any runtime via `TEST_BASE_URL`.
+
+### Test Matrix
+
+| Layer | What it tests | Command | Prerequisites |
+|---|---|---|---|
+| Unit | Local logic, retry, history rollback | `npm test` | None |
+| Live — Node local | Full proxy via local Node server | `npm run test:live` | `npm run start:dev` running |
+| Live — Worker local | Full proxy via wrangler emulation | `TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live` | `npm run worker:dev` running |
+| Live — CF dev | Full proxy via deployed dev Worker | `TEST_BASE_URL=https://<CF_DEV_CUSTOM_DOMAIN> npm run test:live` | Worker deployed, DNS live |
+| Live — CF prod | Full proxy via deployed prod Worker | `TEST_BASE_URL=https://<CF_PROD_CUSTOM_DOMAIN> npm run test:live` | Worker deployed, DNS live |
+| Live — DO App | Full proxy via deployed DO App | `TEST_BASE_URL=https://<DO_APP_URL> npm run test:live` | DO App running |
+| All local | Unit + Node live together | `npm run test:all` | `npm run start:dev` running |
 
 ### Unit Tests
-
-Run local logic only:
 
 ```bash
 npm test
 ```
 
-These tests do not call the network. They cover retry behavior, empty-response handling, rollback of failed user turns, and conversation-history updates. This is the CI-friendly layer because failures here usually mean local code regressed.
+No network required. Covers retry behavior, empty-response handling, rollback of failed user turns, and conversation-history updates. CI-safe.
 
 ### Live Integration Tests
 
-Run the real end-to-end path through the local proxy and upstream providers:
-
 ```bash
+# Node local (requires: npm run start:dev in another terminal)
 npm run test:live
+
+# Worker local emulation (requires: npm run worker:dev in another terminal)
+TEST_BASE_URL=http://127.0.0.1:8787 npm run test:live
+
+# Deployed Cloudflare dev Worker
+TEST_BASE_URL=https://<CF_DEV_CUSTOM_DOMAIN> npm run test:live
+
+# Deployed Cloudflare production Worker
+TEST_BASE_URL=https://<CF_PROD_CUSTOM_DOMAIN> npm run test:live
 ```
 
-You can also target a deployed environment by overriding the test base URL:
+Tests can skip individual providers when an upstream returns a transient overload (e.g. Gemini high demand).
 
-```bash
-TEST_BASE_URL=https://${AIPROXY_DEPLOYED_URL} npm run test:live
-```
-
-Requirements:
-
-- the local proxy server is already running (via `bash start.sh`, `npm run start:dev`, or `npm start` with env vars pre-set)
-- valid provider credentials are available
-- upstream providers are reachable
-
-The live test helpers in this folder now cover Gemini, GitHub Models, OpenRouter, and DeepSeek through the local proxy endpoints.
-
-These tests can skip when a provider returns a transient overload response such as Gemini high demand.
-
-### Run Everything
-
-Run both layers:
+### Run Unit + Node Live Together
 
 ```bash
 npm run test:all

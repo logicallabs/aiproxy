@@ -7,6 +7,12 @@
   "scripts": {
     "start": "node server.cjs",
     "start:dev": "bash start.sh",
+    "node:dev": "bash scripts/node.sh dev",
+    "node:start": "bash scripts/node.sh start",
+    "node:check": "bash scripts/node.sh check",
+    "worker:staging": "bash scripts/worker.sh staging",
+    "worker:staging:deploy": "bash scripts/worker.sh deploy staging",
+    "worker:prod:deploy": "bash scripts/worker.sh deploy production",
     "test": "node --test test/unit.test.js",
     "test:live": "node --test test/test.js",
     "test:all": "node --test test/unit.test.js test/test.js"
