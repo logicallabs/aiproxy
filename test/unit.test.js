@@ -14,6 +14,7 @@ import {
   requestWithRetry,
   runPrompt
 } from "./support.js";
+import worker from "../src/worker/worker.js";
 
 const fastRetryOptions = {
   delayBaseMs: 0,
@@ -186,4 +187,113 @@ test("runPrompt rejects empty model text and rolls back the pending user turn", 
   );
 
   assert.deepEqual(assistant.history, []);
+});
+
+const workerEnv = {
+  GEMINI_API_KEY: "test",
+  GEMINI_URL: "https://upstream.example/gemini",
+  GITHUB_TOKEN: "test",
+  GH_URL: "https://upstream.example/github",
+  UPSTREAM_TIMEOUT_MS: 1000
+};
+
+async function postToWorker(path, rawBody, upstreamData) {
+  const originalFetch = globalThis.fetch;
+  let upstreamRequest;
+  globalThis.fetch = async (url, options) => {
+    upstreamRequest = { url, ...options };
+    return new Response(JSON.stringify(upstreamData), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+
+  try {
+    const response = await worker.fetch(new Request(`https://proxy.example${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: rawBody
+    }), workerEnv);
+    return {
+      response,
+      data: await response.json(),
+      upstreamRequest
+    };
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test("Worker merges Gemini responseFormat into generationConfig", async () => {
+  const responseFormat = { responseMimeType: "application/json", responseSchema: { type: "OBJECT" } };
+  const { response, data, upstreamRequest } = await postToWorker(
+    "/api/gemprompt",
+    JSON.stringify({ contents: [], generationConfig: { temperature: 0.2 }, responseFormat }),
+    { candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }
+  );
+
+  assert.equal(response.status, 200);
+  const forwarded = JSON.parse(upstreamRequest.body);
+  assert.equal(forwarded.responseFormat, undefined);
+  assert.deepEqual(forwarded.generationConfig, { temperature: 0.2, ...responseFormat });
+  assert.equal(data.text, '{"ok":true}');
+});
+
+test("Worker maps OpenAI responseFormat and returns structured text verbatim", async () => {
+  const responseFormat = { type: "json_schema", json_schema: { name: "result", schema: { type: "object" } } };
+  const structuredText = '{"value":"literal \\\\n"}';
+  const { response, data, upstreamRequest } = await postToWorker(
+    "/api/ghprompt",
+    JSON.stringify({ model: "test", messages: [], responseFormat }),
+    { choices: [{ message: { content: structuredText } }] }
+  );
+
+  assert.equal(response.status, 200);
+  const forwarded = JSON.parse(upstreamRequest.body);
+  assert.equal(forwarded.responseFormat, undefined);
+  assert.deepEqual(forwarded.response_format, responseFormat);
+  assert.equal(data.text, structuredText);
+});
+
+test("Worker strips null responseFormat and forwards legacy bodies byte-for-byte", async () => {
+  const rawBody = '{ "model": "test", "messages": [], "responseFormat": null }';
+  const { response, upstreamRequest } = await postToWorker(
+    "/api/ghprompt",
+    rawBody,
+    { choices: [{ message: { content: "ok" } }] }
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(upstreamRequest.body), { model: "test", messages: [] });
+
+  const legacyRawBody = '{ "model": "test", "messages": [] }';
+  const legacy = await postToWorker(
+    "/api/ghprompt",
+    legacyRawBody,
+    { choices: [{ message: { content: "ok" } }] }
+  );
+  assert.equal(legacy.upstreamRequest.body, legacyRawBody);
+});
+
+test("Worker rejects a non-object responseFormat without calling upstream", async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    throw new Error("upstream should not be called");
+  };
+
+  try {
+    const response = await worker.fetch(new Request("https://proxy.example/api/gemprompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [], responseFormat: "json" })
+    }), workerEnv);
+
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /responseFormat/);
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

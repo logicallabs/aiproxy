@@ -30,6 +30,15 @@ Current branch-level implementation status:
 - Normalizes upstream errors to `{ "error": "..." }`
 - Handles CORS for browser clients
 
+### Structured response format
+
+Requests may include a top-level `responseFormat` object. The proxy removes this proxy-only field before forwarding it upstream and translates it to the provider's expected request field:
+
+- `/api/gemprompt`: merges the object into `generationConfig`, preserving existing generation settings.
+- `/api/ghprompt`, `/api/orprompt`, `/api/dsprompt`: forwards it as `response_format`.
+
+The upstream response text is returned verbatim for structured output. A `null` value is stripped and treated as absent; other non-object values return `400`. Requests without `responseFormat` are forwarded byte-for-byte unchanged.
+
 ## Runtime Requirement
 
 - Node.js `>=18.0.0`

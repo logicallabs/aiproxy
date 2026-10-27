@@ -19,6 +19,43 @@ async function parseUpstreamJson(response) {
   }
 }
 
+function prepareRequestBody(provider, rawBody) {
+  let payload;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return { body: rawBody };
+  }
+
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)
+    || !Object.prototype.hasOwnProperty.call(payload, "responseFormat")) {
+    return { body: rawBody };
+  }
+
+  const responseFormat = payload.responseFormat;
+  delete payload.responseFormat;
+  if (responseFormat === null) {
+    return { body: JSON.stringify(payload) };
+  }
+  if (typeof responseFormat !== "object" || Array.isArray(responseFormat)) {
+    return { error: "responseFormat must be a JSON object." };
+  }
+
+  if (provider === "gemini") {
+    const generationConfig = payload.generationConfig;
+    payload.generationConfig = {
+      ...(generationConfig !== null && typeof generationConfig === "object" && !Array.isArray(generationConfig)
+        ? generationConfig
+        : {}),
+      ...responseFormat
+    };
+  } else {
+    payload.response_format = responseFormat;
+  }
+
+  return { body: JSON.stringify(payload) };
+}
+
 function buildGeminiUrl(config, token) {
   if (config.GEMINI_URL) {
     if (/([?&])key=/.test(config.GEMINI_URL)) {
@@ -122,11 +159,16 @@ async function proxyProviderRequest({ provider, body, config, fetchImpl = fetch 
     return validationError;
   }
 
+  const preparedBody = prepareRequestBody(provider, body);
+  if (preparedBody.error) {
+    return toJsonResponse(400, { error: preparedBody.error });
+  }
+
   try {
     const response = await fetchImpl(providerConfig.upstreamUrl, {
       method: "POST",
       headers: providerConfig.buildHeaders(providerConfig.token),
-      body,
+      body: preparedBody.body,
       signal: createTimeoutSignal(config.UPSTREAM_TIMEOUT_MS)
     });
 
