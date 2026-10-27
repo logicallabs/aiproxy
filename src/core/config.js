@@ -16,7 +16,7 @@ function resolveConfig(envSource = {}) {
     OPENROUTER_URL: envSource.OPENROUTER_URL,
     DEEPSEEK_API_KEY: envSource.DEEPSEEK_API_KEY,
     DEEPSEEK_URL: envSource.DEEPSEEK_URL,
-    UPSTREAM_TIMEOUT_MS: toNumber(envSource.UPSTREAM_TIMEOUT_MS, 30000)
+    UPSTREAM_TIMEOUT_MS: toNumber(envSource.UPSTREAM_TIMEOUT_MS, 90000)
   };
 }
 
